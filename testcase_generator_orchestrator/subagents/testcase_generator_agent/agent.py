@@ -14,7 +14,7 @@ from .subagents.testcase_reviewer import testcase_reviewer
 # Create the Refinement Loop Agent
 refinement_loop = LoopAgent(
     name="TestcaseRefinementLoop",
-    max_iterations=2,
+    max_iterations=1,
     sub_agents=[
         testcase_reviewer,
         testcase_refiner,

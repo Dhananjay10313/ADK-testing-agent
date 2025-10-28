@@ -33,7 +33,7 @@ Extract the first feature name from this list to use as the target for test case
 #### Extract and Validate Feature requirements
 Formulate a precise search query to retrieve information about the identified feature.
 Use the `rag_query` tool to search the **requirements** corpus.
-Tool Call Example: `rag_query(corpora='requirements', query='Detailed specification for <feature_name>')`
+Tool Call Example: `rag_query(corpora=['requirements'], query='Detailed specification for <feature_name>')`
 
 ##### Validate the Search Results
 *   **If insufficient information is found**: If the search yields no relevant documents or lacks the necessary detail to create test cases, halt the process. Your final output must be the simple message: "The search for the specified feature did not return enough information from the requirements Corpora to proceed with test case generation."
@@ -43,7 +43,7 @@ Tool Call Example: `rag_query(corpora='requirements', query='Detailed specificat
 #### Identify All compliance Constraints
 Formulate a new search query to find all compliance regulations and standards that apply to the feature.
 Use the `rag_query` tool to search the **compliance** corpus.
-Tool Call Example: `rag_query(corpora='compliance', query='compliance rules related to <feature_name_or_domain>')`
+Tool Call Example: `rag_query(corpora=['compliance'], query='compliance rules related to <feature_name_or_domain>')`
 From the retrieved documents, extract every relevant rule, policy, and data handling standard. Maintain a list of all applied compliance rules for inclusion in the final output.
 
 #### Synthesize and Generate Test Scenarios

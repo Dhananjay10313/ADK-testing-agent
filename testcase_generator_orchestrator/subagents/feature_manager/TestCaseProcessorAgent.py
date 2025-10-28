@@ -10,6 +10,20 @@ from google.adk.events import Event, EventActions
 # --- Configure logging to show output in the console ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+
+def get_feature_list(state):
+    features = state.get("features_to_process", [])
+    # Handle if accidentally stored as JSON string
+    if isinstance(features, str):
+        try:
+            features = json.loads(features)
+        except Exception:
+            # If it's not valid JSON, fallback to treating as plain string (unlikely, log or raise)
+            features = []
+    # At this point, features is always a list
+    return features
+
+
 class TestCaseProcessorAgent(BaseAgent):
     """
     An ADK agent that processes features, aggregates test cases, and terminates
@@ -34,9 +48,10 @@ class TestCaseProcessorAgent(BaseAgent):
         # Log the entire session state for debugging
         try:
             state_json = json.dumps(ctx.session.state, indent=2)
-            temp=ctx.session.state
-            tlst=temp.get("features_to_process",[])
-            logger.info(f"Current session state on invocation:\n{tlst}")
+            state_dict = json.loads(state_json)
+            tlst=json.dumps(state_dict['features_to_process'])
+            tllst=json.loads(tlst)
+            logger.info(f"Current session state on invocation:\n{tllst[0]}")
         except TypeError:
             logger.info(f"Current session state (raw): {ctx.session.state}")
 
@@ -44,10 +59,17 @@ class TestCaseProcessorAgent(BaseAgent):
         state_delta: Dict[str, Any] = {}
         output_message = "Processed a feature and updated test cases."
 
-        features_to_process = list(state.get("features_to_process", []))
+        features_to_process = state.get("features_to_process", [])
+        try:
+            features_to_process = json.loads(features_to_process)
+            logger.info(f"Current session state on invocation:\n{features_to_process}")
+        except Exception:
+            logger.error(f"Failed to parse features_to_process string as JSON list{features_to_process}")
+
 
         # If the processing list is empty, terminate the loop.
         if not features_to_process:
+            logger.info(f"Current session state on invocation:\n{state}")
             logger.info("No features left to process. Terminating loop.")
             yield Event(actions=EventActions(escalate=True), author=self.name)
             return
@@ -69,10 +91,10 @@ class TestCaseProcessorAgent(BaseAgent):
         # Check for termination condition *after* processing
         if not features_to_process:
             output_message = "Processed the final feature. Terminating loop."
+            logger.info(f"Current session state on invocation:\n{state}")
             logger.info(output_message)
             yield Event(
                 actions=EventActions(state_delta=state_delta, escalate=True),
-                output=output_message,
                 author=self.name
             )
             return
@@ -81,7 +103,6 @@ class TestCaseProcessorAgent(BaseAgent):
         logger.info(output_message)
         yield Event(
             actions=EventActions(state_delta=state_delta),
-            output=output_message,
             author=self.name
         )
 
