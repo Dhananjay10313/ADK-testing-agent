@@ -19,7 +19,7 @@ testcase_generator_loop = LoopAgent(
     description="Iteratively generates Testcase until all features have been processed",
 )
 
-root_agent = SequentialAgent(
+new_testcase_generator = SequentialAgent(
     name="TestcaseGenerationPipeline",
     sub_agents=[
         testcase_requirements_generator,  # Step 1: Generate Testcase requirements
