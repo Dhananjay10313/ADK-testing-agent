@@ -3,6 +3,13 @@ Initial Testcase Requirements Generator Agent
 """
 
 from google.adk.agents.llm_agent import LlmAgent
+from pydantic import BaseModel, Field
+from typing import List
+
+
+class OutputSchema(BaseModel):
+    features_to_process: List[str] = Field(
+        description="List of features to process for test case generation")
 
 
 # Constants
