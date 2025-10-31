@@ -13,35 +13,7 @@ class OutputSchema(BaseModel):
 
 
 # Constants
-GEMINI_MODEL = "gemini-2.5-pro"
-
-
-from google.adk.tools.tool_context import ToolContext
-
-def clear_session_state(tool_context: ToolContext) -> dict:
-    """
-    Clears all session state variables.
-    
-    This tool removes all data from the current session state,
-    effectively resetting the conversation context.
-    
-    Returns:
-        dict: Status message indicating successful state clearing.
-    """
-    # Get all current state keys
-    state_keys = list(tool_context.state.to_dict().keys())
-    print(f"Current session state {tool_context.state}")
-    
-    # Clear all state by setting each key to None or removing them
-    for key in state_keys:
-      if key!="all_testcases_history":
-        tool_context.state[key] = None
-    
-    return {
-        "status": "success",
-        "message": "Session state has been cleared successfully",
-        "cleared_keys": state_keys
-    }
+GEMINI_MODEL = "gemini-2.0-flash"
 
 
 
@@ -54,8 +26,6 @@ You are an expert Test Requirements Analyst agent. Your primary function is to r
 
 ### Agent Instructions
 
-0. **Clear Session State First:** Before starting any requirement analysis, you MUST always call the clear_session_state tool as your first action. This ensures a clean slate for processing new test case generation requests and prevents state contamination from previous sessions.
-
 1. **Analyze the User Request:** Carefully analyze the user's entire request to understand the full scope of the testing requirements.
 
 2. **Identify and Isolate Features:**
@@ -64,39 +34,73 @@ You are an expert Test Requirements Analyst agent. Your primary function is to r
    * If the request is vague or high-level, treat the entire subject as a single feature.
 
 3. **Format the Output:**
-   * Your final output must be a list of strings. Each string in the list should be a clear and concise description of an individual feature.
+   * Your output must strictly conform to the OutputSchema defined below.
+   * The features_to_process field must contain a list of strings, where each string is a clear and concise description of an individual feature.
 
-### Critical State Management Directive
+### Output Schema
 
-Your final output must strictly be the list of feature strings and nothing else. Do not add any descriptive labels, code block specifiers like `python` or `json`, or any other explanatory text. The agent's response will be stored directly in the session state for parsing by other agents, and any extraneous content will cause a failure.
+Your response MUST conform to the following Pydantic schema:
+
+```python
+class OutputSchema(BaseModel):
+    features_to_process: List[str] = Field(
+        description="List of features to process for test case generation")
+```
+
+### Critical Output Directive
+
+Your final output must be a valid JSON object matching the OutputSchema. Do not add any descriptive labels, code block specifiers like `python` or `json`, or any other explanatory text outside the JSON structure. The agent's response will be stored directly in the session state for parsing by other agents, and any extraneous content will cause a failure.
 
 ### Examples
 
 #### Request with Multiple Features
 * **User Request:** "I need to write test cases for our new e-commerce platform. Please cover the user registration flow, the product search functionality, and the ability to add items to a wishlist."
 * **Correct Output:**
-  [
+```json
+{
+  "features_to_process": [
     "User registration flow for the e-commerce platform",
     "Product search functionality",
     "Ability to add items to a wishlist"
   ]
+}
+```
 
 #### Request with a Single, Cohesive Feature
 * **User Request:** "Can you generate test cases for the complete checkout process? This should include selecting a payment method, applying a discount code, and confirming the order."
 * **Correct Output:**
-  [
+```json
+{
+  "features_to_process": [
     "Complete checkout process, including selecting a payment method, applying a discount code, and confirming the order"
   ]
+}
+```
 
 #### Vague Request
 * **User Request:** "Test the user profile section."
 * **Correct Output:**
-  [
+```json
+{
+  "features_to_process": [
     "User profile section"
   ]
+}
+```
 
+### Validation Rules
+
+Before finalizing your output, ensure:
+- The output is valid JSON matching the OutputSchema
+- The features_to_process field is a list (array) of strings
+- Each string is clear, concise, and represents a testable feature
+- No duplicate features are listed
+- Features are appropriately granular (not too broad, not too narrow)
+- The JSON contains no additional fields beyond those in the schema
+
+---
     """,
     description="Generates an initial list of features to be processed from the user's request",
-    output_key="features_to_process",
-    tools=[clear_session_state],
+    output_key="requirements",
+    output_schema=OutputSchema,
 )

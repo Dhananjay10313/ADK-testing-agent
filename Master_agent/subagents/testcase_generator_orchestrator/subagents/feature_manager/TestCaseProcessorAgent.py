@@ -225,7 +225,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 
 def get_feature_list(state):
-    features = state.get("features_to_process", [])
+    requirements = state.get("requirements", {"features_to_process": [] })
+    features = requirements.get("features_to_process", [])
     # Handle if accidentally stored as JSON string
     if isinstance(features, str):
         try:
@@ -258,21 +259,13 @@ class TestCaseProcessorAgent(BaseAgent):
         # --- Get the logger instance here ---
         logger = logging.getLogger(self.name)
 
-        # Log the entire session state for debugging
-        try:
-            state_json = json.dumps(ctx.session.state, indent=2)
-            state_dict = json.loads(state_json)
-            tlst=json.dumps(state_dict['features_to_process'])
-            tllst=json.loads(tlst["features_to_process"])
-            logger.info(f"Current session state on invocation:\n{tllst[0]}")
-        except TypeError:
-            logger.info(f"Current session state (raw): {ctx.session.state}")
 
         state = ctx.session.state
         state_delta: Dict[str, Any] = {}
         output_message = "Processed a feature and updated test cases."
 
-        features_to_process = state.get("features_to_process", [])
+        requirements = state.get("requirements", {"features_to_process": [] })
+        features_to_process = requirements.get("features_to_process", [])
         try:
             features_to_process = json.loads(features_to_process)
             logger.info(f"Current session state on invocation:\n{features_to_process}")
@@ -289,10 +282,15 @@ class TestCaseProcessorAgent(BaseAgent):
 
         # Process the first feature in the list
         features_to_process.pop(0)
-        state_delta["features_to_process"] = features_to_process
+        requirements["features_to_process"] = features_to_process
+        state_delta["requirements"] = requirements
 
         current_testcases = state.get("current_testcases")
-        aggregated_testcases = list(state.get("aggregated_testcases", []))
+        aggregated_testcases = state.get("aggregated_testcases", [])
+        
+        if aggregated_testcases is None:
+            aggregated_testcases = []
+            
         all_testcases_history = list(state.get("all_testcases_history", []))
         
         if current_testcases:
@@ -319,6 +317,7 @@ class TestCaseProcessorAgent(BaseAgent):
                 })
         
         state_delta["aggregated_testcases"] = aggregated_testcases
+        state_delta["all_testcases_history"] = all_testcases_history
         
         # Clear the current_testcases variable for the next iteration
         state_delta["current_testcases"] = ""

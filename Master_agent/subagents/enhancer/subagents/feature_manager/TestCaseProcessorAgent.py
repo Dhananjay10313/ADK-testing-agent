@@ -342,19 +342,6 @@ Important:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
-def get_feature_list(state):
-    features = state.get("features_to_process", [])
-    # Handle if accidentally stored as JSON string
-    if isinstance(features, str):
-        try:
-            features = json.loads(features)
-        except Exception:
-            # If it's not valid JSON, fallback to treating as plain string (unlikely, log or raise)
-            features = []
-    # At this point, features is always a list
-    return features
-
-
 class TestCaseProcessorAgent(BaseAgent):
     """
     An ADK agent that aggregates test cases. And handles logging and event authoring.
@@ -379,7 +366,11 @@ class TestCaseProcessorAgent(BaseAgent):
         state_delta: Dict[str, Any] = {}
         
         current_testcases = state.get("current_testcases")
-        aggregated_testcases = list(state.get("aggregated_testcases", []))
+        aggregated_testcases = state.get("aggregated_testcases", [])
+        
+        if aggregated_testcases is None:
+            aggregated_testcases = []
+        
         all_testcases_history = list(state.get("all_testcases_history", []))
         
         if current_testcases:

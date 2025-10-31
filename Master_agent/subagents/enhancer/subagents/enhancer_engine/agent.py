@@ -12,41 +12,13 @@ from .tools.rag_query import rag_query
 GEMINI_MODEL = "gemini-2.5-pro"
 
 
-from google.adk.tools.tool_context import ToolContext
-
-def clear_session_state(tool_context: ToolContext) -> dict:
-    """
-    Clears all session state variables.
-    
-    This tool removes all data from the current session state,
-    effectively resetting the conversation context.
-    
-    Returns:
-        dict: Status message indicating successful state clearing.
-    """
-    # Get all current state keys
-    state_keys = list(tool_context.state.to_dict().keys())
-    print(f"Current session state {tool_context.state}")
-    
-    # Clear all state by setting each key to None or removing them
-    for key in state_keys:
-        if key!="all_testcases_history":    
-            tool_context.state[key] = None
-    
-    return {
-        "status": "success",
-        "message": "Session state has been cleared successfully",
-        "cleared_keys": state_keys
-    }
-
-
-
 # Define the Initial Testcase Generator Agent
 enhancer_engine = LlmAgent(
     name="EnhancerEngine",
     model=GEMINI_MODEL,
-    tools=[rag_query, clear_session_state],
+    tools=[rag_query],
     instruction="""
+***
 
 ## Agent Purpose
 You are a Test Case Enhancement Agent responsible for accepting user requests to enhance, refine, or modify previously generated test cases from earlier conversations in the current session. You must retrieve context from past interactions, apply enhancements based on user queries, and leverage the RAG query tool when additional information from requirements or compliance documentation is needed.
@@ -54,9 +26,6 @@ You are a Test Case Enhancement Agent responsible for accepting user requests to
 ***
 
 ## Core Responsibilities
-
-### 0. Clear Session State First
-**CRITICAL FIRST ACTION:** Before beginning any enhancement process, you MUST always call the clear_session_state tool as your very first action. This ensures a clean slate for processing new enhancement requests and prevents state contamination from previous operations. This step takes precedence over all other responsibilities.
 
 ### 1. Context Management
 - Maintain awareness of all test cases generated in the current session
@@ -83,9 +52,6 @@ Tool Call Example: rag_query(corpora=['compliance'], query='compliance rules rel
 ***
 
 ## Workflow Steps
-
-### Step 0: Clear Session State
-**MANDATORY FIRST STEP:** Call the clear_session_state tool before proceeding with any enhancement logic. This ensures no residual state from previous sessions interferes with the current enhancement request.
 
 ### Step 1: Identify Enhancement Request
 - Parse the user's enhancement request
@@ -213,7 +179,6 @@ When returning an error:
 ### Scenario 1: Successful Enhancement
 User Request: "Add password complexity validation to test case 5"
 Agent Action: 
-- First calls clear_session_state tool
 - Retrieves test case 5 from session
 - Queries compliance corpus for password requirements
 - Updates test case 5 with detailed password validation steps
@@ -223,7 +188,6 @@ Agent Action:
 User Request: "Enhance the login test cases"
 Session State: current_testcases is empty
 Agent Action: 
-- First calls clear_session_state tool
 - Sets current_testcases = "Test case enhancement cannot be generated. Reason: No test cases found in the current session. Please generate test cases first by providing your requirements, then request enhancements."
 - Does not attempt any enhancement
 
@@ -231,13 +195,9 @@ Agent Action:
 User Request: "Update test case 25 to include biometric authentication"
 Session State: Only 15 test cases exist
 Agent Action:
-- First calls clear_session_state tool
 - Sets current_testcases = "Test case enhancement cannot be generated. Reason: Test case 25 does not exist. The current session contains only 15 test cases (numbered 1-15). Please specify a valid test case number or describe the test case you want to enhance."
 
 ***
-
-**Note:** The clear_session_state tool call is mandatory as the first action to ensure clean state management throughout the enhancement workflow.
-
  """,
     description="Makes enhancements to previously generated test cases based on user requests and additional context from RAG queries.",
     output_key="current_testcases",

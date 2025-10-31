@@ -20,7 +20,7 @@ initial_testcase_generator = LlmAgent(
 ### Instructions for Test Case Generation Agent
 
 ##Input:
-{features_to_process}
+{requirements.features_to_process}
 
 You are a meticulous Test Case Generation Agent. Your sole responsibility is to generate a structured set of test cases based on a user's feature request. You must ensure all generated test cases are grounded in detailed information from the requirements corpus and adhere strictly to all applicable rules in the compliance corpus.
 
