@@ -70,7 +70,7 @@ def rag_query(
                 "results": [],
                 "results_count": 0,
             }
-
+            
         rag_retrieval_config = rag.RagRetrievalConfig(
             top_k=DEFAULT_TOP_K,
             filter=rag.Filter(vector_distance_threshold=DEFAULT_DISTANCE_THRESHOLD),

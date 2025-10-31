@@ -1,6 +1,6 @@
 import logging
 import json
-from typing import AsyncGenerator, Any, Dict
+from typing import AsyncGenerator, Any, Dict, List
 from typing_extensions import override
 
 from google.adk.agents import BaseAgent
@@ -13,6 +13,137 @@ import logging
 from vertexai.generative_models import GenerativeModel
 
 logger = logging.getLogger(__name__)
+
+
+async def summarize_testcases_output(
+    aggregated_testcases: List[Dict], 
+    model_name: str = "gemini-2.0-flash"
+) -> str:
+    """
+    Summarizes aggregated test cases into a user-friendly message.
+    
+    Args:
+        aggregated_testcases: List of dictionaries containing parsed test cases with structure:
+            [{
+                "testcase_id": "uuid",
+                "Testcase Title": "title",
+                "testcases": [["1.", "description", "expected"]],
+                "compliance_ids": ["COMP-ID1", "COMP-ID2"]
+            }]
+        model_name: Model identifier (default: gemini-2.0-flash)
+        
+    Returns:
+        Formatted summary message for the user
+    """
+    
+    # Calculate statistics
+    total_testcase_sets = len(aggregated_testcases)
+    total_individual_tests = sum(len(tc["testcases"]) for tc in aggregated_testcases)
+    
+    # Extract unique compliance IDs across all test cases
+    all_compliance_ids = set()
+    for tc in aggregated_testcases:
+        all_compliance_ids.update(tc.get("compliance_ids", []))
+    
+    # Prepare structured data for the LLM
+    testcase_summary = []
+    for idx, tc in enumerate(aggregated_testcases, 1):
+        testcase_summary.append({
+            "set_number": idx,
+            "title": tc["Testcase Title"],
+            "test_count": len(tc["testcases"]),
+            "compliance_rules": tc.get("compliance_ids", [])
+        })
+    
+    summarization_prompt = f"""
+You are a test case report generator. Create a clear, professional summary message for the user based on the generated test cases.
+
+**Input Statistics:**
+- Total Test Case Sets: {total_testcase_sets}
+- Total Individual Test Cases: {total_individual_tests}
+- Unique Compliance Rules Covered: {len(all_compliance_ids)}
+
+**Test Case Sets Generated:**
+{json.dumps(testcase_summary, indent=2)}
+
+**All Compliance Rules:**
+{json.dumps(list(all_compliance_ids), indent=2)}
+
+**Instructions:**
+Generate a concise, user-friendly summary message that:
+1. Starts with a success confirmation
+2. Mentions the total number of test cases and sets generated
+3. Briefly lists each test case set with its title and count
+4. Highlights compliance rules covered (if any)
+5. Ends with a positive closing statement
+
+**Formatting Requirements:**
+- Use markdown formatting for readability
+- Use bullet points for lists
+- Keep the tone professional yet friendly
+- Maximum length: 300 words
+- Include emojis sparingly for visual appeal (optional)
+
+Return ONLY the formatted summary message, no additional text.
+"""
+    
+    try:
+        # Initialize Vertex AI Generative Model
+        model = GenerativeModel(model_name)
+        
+        # Generate content
+        response = model.generate_content(summarization_prompt)
+        summary_message = response.text.strip()
+        
+        return summary_message
+        
+    except Exception as e:
+        # Fallback to template-based summary if LLM fails
+        logger.error(f"Error generating summary with LLM: {e}")
+        return generate_fallback_summary(aggregated_testcases, total_individual_tests, all_compliance_ids)
+
+
+def generate_fallback_summary(
+    aggregated_testcases: List[Dict], 
+    total_individual_tests: int, 
+    all_compliance_ids: set
+) -> str:
+    """
+    Generates a fallback summary message without using LLM.
+    
+    Args:
+        aggregated_testcases: List of test case dictionaries
+        total_individual_tests: Total count of individual test cases
+        all_compliance_ids: Set of unique compliance IDs
+        
+    Returns:
+        Formatted summary string
+    """
+    summary_lines = [
+        "## ✅ Test Cases Generated Successfully!\n",
+        f"I've generated **{total_individual_tests} test cases** across **{len(aggregated_testcases)} test case set(s)**.\n",
+        "### 📋 Generated Test Case Sets:\n"
+    ]
+    
+    for idx, tc in enumerate(aggregated_testcases, 1):
+        test_count = len(tc["testcases"])
+        title = tc["Testcase Title"]
+        summary_lines.append(f"{idx}. **{title}** - {test_count} test cases")
+    
+    if all_compliance_ids:
+        summary_lines.append(f"\n### 🔒 Compliance Rules Covered:")
+        summary_lines.append(f"Your test cases include validation for **{len(all_compliance_ids)} compliance rules**:")
+        for compliance_id in sorted(all_compliance_ids):
+            summary_lines.append(f"- {compliance_id}")
+    
+    summary_lines.append("\n### 📥 Next Steps:")
+    summary_lines.append("- Review the generated test cases")
+    summary_lines.append("- Export to your preferred format")
+    summary_lines.append("- Integrate with your test management system")
+    summary_lines.append("\nAll test cases are ready for use! 🎉")
+    
+    return "\n".join(summary_lines)
+
 
 async def parse_testcases_to_json(current_testcases: str, model_name: str = "gemini-2.0-flash") -> dict:
     """
@@ -162,6 +293,7 @@ class TestCaseProcessorAgent(BaseAgent):
 
         current_testcases = state.get("current_testcases")
         aggregated_testcases = list(state.get("aggregated_testcases", []))
+        all_testcases_history = list(state.get("all_testcases_history", []))
         
         if current_testcases:
             # Parse the test cases using Vertex AI before appending
@@ -173,6 +305,7 @@ class TestCaseProcessorAgent(BaseAgent):
                 logger.info(f"Successfully parsed test cases: {parsed_json['testcase_id']}")
                 
                 aggregated_testcases.append(parsed_json)
+                all_testcases_history.append(parsed_json)
             except Exception as e:
                 logger.error(f"Failed to parse test cases: {e}")
                 # Fallback: append error record
@@ -195,6 +328,10 @@ class TestCaseProcessorAgent(BaseAgent):
             output_message = "Processed the final feature. Terminating loop."
             logger.info(f"Current session state on invocation:\n{state}")
             logger.info(output_message)
+            
+            summarize_testcases = await summarize_testcases_output(aggregated_testcases)
+            state_delta["final_summary"] = summarize_testcases
+            
             yield Event(
                 actions=EventActions(state_delta=state_delta, escalate=True),
                 author=self.name

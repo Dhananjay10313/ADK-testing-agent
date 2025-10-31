@@ -13,24 +13,58 @@ class OutputSchema(BaseModel):
 
 
 # Constants
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-pro"
+
+
+from google.adk.tools.tool_context import ToolContext
+
+def clear_session_state(tool_context: ToolContext) -> dict:
+    """
+    Clears all session state variables.
+    
+    This tool removes all data from the current session state,
+    effectively resetting the conversation context.
+    
+    Returns:
+        dict: Status message indicating successful state clearing.
+    """
+    # Get all current state keys
+    state_keys = list(tool_context.state.to_dict().keys())
+    print(f"Current session state {tool_context.state}")
+    
+    # Clear all state by setting each key to None or removing them
+    for key in state_keys:
+      if key!="all_testcases_history":
+        tool_context.state[key] = None
+    
+    return {
+        "status": "success",
+        "message": "Session state has been cleared successfully",
+        "cleared_keys": state_keys
+    }
+
+
 
 # Define the Initial Testcase Generator Agent
 testcase_requirements_generator = LlmAgent(
     name="TestcaseRequirementsGenerator",
     model=GEMINI_MODEL,
     instruction="""
-    You are an expert Test Requirements Analyst agent. Your primary function is to receive a user's request for generating test cases and break it down into a clear, structured list of individual features for downstream processing.
+You are an expert Test Requirements Analyst agent. Your primary function is to receive a user's request for generating test cases and break it down into a clear, structured list of individual features for downstream processing.
 
 ### Agent Instructions
 
-1.  **Analyze the User Request:** Carefully analyze the user's entire request to understand the full scope of the testing requirements.
-2.  **Identify and Isolate Features:**
-    *   If the request mentions multiple, logically separate software features, you must divide the request into a list where each item represents one self-contained feature.
-    *   If the request describes a single, cohesive feature or process (even if it involves multiple steps), you must treat it as one item in the list. Do not make unnecessary divisions of a single workflow.
-    *   If the request is vague or high-level, treat the entire subject as a single feature.
-3.  **Format the Output:**
-    *   Your final output must be a list of strings. Each string in the list should be a clear and concise description of an individual feature.
+0. **Clear Session State First:** Before starting any requirement analysis, you MUST always call the clear_session_state tool as your first action. This ensures a clean slate for processing new test case generation requests and prevents state contamination from previous sessions.
+
+1. **Analyze the User Request:** Carefully analyze the user's entire request to understand the full scope of the testing requirements.
+
+2. **Identify and Isolate Features:**
+   * If the request mentions multiple, logically separate software features, you must divide the request into a list where each item represents one self-contained feature.
+   * If the request describes a single, cohesive feature or process (even if it involves multiple steps), you must treat it as one item in the list. Do not make unnecessary divisions of a single workflow.
+   * If the request is vague or high-level, treat the entire subject as a single feature.
+
+3. **Format the Output:**
+   * Your final output must be a list of strings. Each string in the list should be a clear and concise description of an individual feature.
 
 ### Critical State Management Directive
 
@@ -39,27 +73,30 @@ Your final output must strictly be the list of feature strings and nothing else.
 ### Examples
 
 #### Request with Multiple Features
-*   **User Request:** "I need to write test cases for our new e-commerce platform. Please cover the user registration flow, the product search functionality, and the ability to add items to a wishlist."
-*   **Correct Output:**
-    [
-      "User registration flow for the e-commerce platform",
-      "Product search functionality",
-      "Ability to add items to a wishlist"
-    ]
+* **User Request:** "I need to write test cases for our new e-commerce platform. Please cover the user registration flow, the product search functionality, and the ability to add items to a wishlist."
+* **Correct Output:**
+  [
+    "User registration flow for the e-commerce platform",
+    "Product search functionality",
+    "Ability to add items to a wishlist"
+  ]
+
 #### Request with a Single, Cohesive Feature
-*   **User Request:** "Can you generate test cases for the complete checkout process? This should include selecting a payment method, applying a discount code, and confirming the order."
-*   **Correct Output:**
-    [
-      "Complete checkout process, including selecting a payment method, applying a discount code, and confirming the order"
-    ]
+* **User Request:** "Can you generate test cases for the complete checkout process? This should include selecting a payment method, applying a discount code, and confirming the order."
+* **Correct Output:**
+  [
+    "Complete checkout process, including selecting a payment method, applying a discount code, and confirming the order"
+  ]
 
 #### Vague Request
-*   **User Request:** "Test the user profile section."
-*   **Correct Output:**
-    [
-      "User profile section"
-    ]
+* **User Request:** "Test the user profile section."
+* **Correct Output:**
+  [
+    "User profile section"
+  ]
+
     """,
     description="Generates an initial list of features to be processed from the user's request",
     output_key="features_to_process",
+    tools=[clear_session_state],
 )
